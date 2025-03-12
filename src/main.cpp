@@ -1,87 +1,86 @@
-#include <Arduino.h>
+#include <Wire.h>
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_GFX.h>
+#include <DHT.h>
 
-int Merah = 23;
-int Kuning = 22;
-int Hijau = 21;
+#define SCREEN_WIDTH 128 // OLED width, in pixels
+#define SCREEN_HEIGHT 64 // OLED height, in pixels
 
-int Tombol1 = 34;
-int Tombol2 = 35;
-int Tombol3 = 32;
+// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-// Fungsi deklarasi
-void kedipLampu(int lampu, int jumlah);
-void kedipBergantian(int lampu1, int lampu2, int jumlah);
-void kedipBerurutan(int jumlah);
+// DHT22 setup
+#define DHTPIN 15      // Pin where DHT22 is connected
+#define DHTTYPE DHT22  // DHT 22 (AM2302)
+DHT dht(DHTPIN, DHTTYPE);
+
+// LDR setup
+#define LDR_PIN 12     // Analog pin for LDR (AO pin)
 
 void setup() {
-    pinMode(Merah, OUTPUT);
-    pinMode(Kuning, OUTPUT);
-    pinMode(Hijau, OUTPUT);
+  // Initialize the serial monitor
+  Serial.begin(115200);
 
-    pinMode(Tombol1, INPUT_PULLUP);
-    pinMode(Tombol2, INPUT_PULLUP);
-    pinMode(Tombol3, INPUT_PULLUP);
+  // Initialize the DHT22 sensor
+  dht.begin();
+
+  // Initialize the OLED display
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {  // Address 0x3C for 128x64
+    Serial.println(F("SSD1306 allocation failed"));
+    for (;;); // Don't proceed, loop forever
+  }
+
+  // Clear the display buffer
+  display.clearDisplay();
+  
+  // Set text size and color
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
 }
 
 void loop() {
-    // Cek tombol 1
-    if (digitalRead(Tombol1) == LOW) {
-        delay(200); // Debounce
-        while (digitalRead(Tombol1) == LOW); // Tunggu tombol dilepas
-        kedipLampu(Merah, 5);
-    } 
-    
-    // Cek tombol 2
-    if (digitalRead(Tombol2) == LOW) {
-        delay(200);
-        while (digitalRead(Tombol2) == LOW);
-        kedipBergantian(Merah, Hijau, 5);
-    } 
-    
-    // Cek tombol 3
-    if (digitalRead(Tombol3) == LOW) {
-        delay(200);
-        while (digitalRead(Tombol3) == LOW);
-        kedipBerurutan(5);
-    }
-}
+  // Read temperature and humidity from DHT22
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
 
-// Fungsi kedip untuk satu lampu
-void kedipLampu(int lampu, int jumlah) {
-    for (int i = 0; i < jumlah; i++) {
-        digitalWrite(lampu, HIGH);
-        delay(300);
-        digitalWrite(lampu, LOW);
-        delay(300);
-    }
-}
+  // Read light intensity from LDR
+  int lightValue = analogRead(LDR_PIN);
+  
+  // Convert LDR value to a percentage (optional, for display)
+  float lightPercentage = map(lightValue, 0, 4095, 0, 100);
 
-// Fungsi kedip bergantian untuk dua lampu
-void kedipBergantian(int lampu1, int lampu2, int jumlah) {
-    for (int i = 0; i < jumlah; i++) {
-        digitalWrite(lampu1, HIGH);
-        digitalWrite(lampu2, LOW);
-        delay(300);
-        digitalWrite(lampu1, LOW);
-        digitalWrite(lampu2, HIGH);
-        delay(300);
-    }
-    digitalWrite(lampu2, LOW);
-}
+  // Check if any reading failed, and exit early (to try again).
+  if (isnan(temperature) || isnan(humidity)) {
+    Serial.println(F("Failed to read from DHT sensor!"));
+    return;
+  }
 
-// Fungsi kedip berurutan untuk tiga lampu
-void kedipBerurutan(int jumlah) {
-    for (int i = 0; i < jumlah; i++) {
-        digitalWrite(Merah, HIGH);
-        delay(300);
-        digitalWrite(Merah, LOW);
+  // Print the values to the serial monitor (optional)
+  Serial.print(F("Temperature: "));
+  Serial.print(temperature);
+  Serial.print(F(" °C  Humidity: "));
+  Serial.print(humidity);
+  Serial.print(F("%  Light Intensity: "));
+  Serial.print(lightPercentage);
+  Serial.println(F("%"));
 
-        digitalWrite(Kuning, HIGH);
-        delay(300);
-        digitalWrite(Kuning, LOW);
+  // Display the values on OLED
+  display.clearDisplay();  // Clear the display buffer
 
-        digitalWrite(Hijau, HIGH);
-        delay(300);
-        digitalWrite(Hijau, LOW);
-    }
+  display.setCursor(0, 0); // Set the cursor to (0,0)
+  display.print(F("Temp: "));
+  display.print(temperature);
+  display.println(F(" C"));
+
+  display.print(F("Humidity: "));
+  display.print(humidity);
+  display.println(F(" %"));
+
+  display.print(F("Light: "));
+  display.print(lightPercentage);
+  display.println(F(" %"));
+
+  display.display();  // Send the buffer to the display
+
+  delay(2000);  // Wait for 2 seconds before the next reading
 }
